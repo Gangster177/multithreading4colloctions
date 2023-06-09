@@ -5,55 +5,83 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class Main {
     public static final String SYMBOL = "abc";
 
-    public static final int MAXSIZE = 10;
-    public static final int STRINGSIZE = 100;
-    public static final int STRINGLENGHT = 1000;
+    public static final int MAXSIZE = 100;
+    public static final int SIZEOFSTRINGS = 10_000;
+    public static final int STRINGLENGHT = 100_000;
 
-    public static final char A = 'a';
-    public static final char B = 'b';
-    public static final char C = 'c';
 
     public static BlockingQueue<String> queueA = new ArrayBlockingQueue<>(MAXSIZE);
     public static BlockingQueue<String> queueB = new ArrayBlockingQueue<>(MAXSIZE);
     public static BlockingQueue<String> queueC = new ArrayBlockingQueue<>(MAXSIZE);
 
-//    public static AtomicReference<String> textMaxA = new AtomicReference<>();
-//    public static AtomicReference<String> textMaxB = new AtomicReference<>();
-//    public static AtomicReference<String> textMaxC = new AtomicReference<>();
+    public static BlockingQueue<String> queueAllStr = new ArrayBlockingQueue<>(SIZEOFSTRINGS);
 
+    public static final char A = 'a';
+    public static final char B = 'b';
+    public static final char C = 'c';
+
+    public static AtomicReference<String> maxStringA = new AtomicReference<>();
+    public static AtomicReference<String> maxStringB = new AtomicReference<>();
+    public static AtomicReference<String> maxStringC = new AtomicReference<>();
+
+
+    public static AtomicInteger maxIntA = new AtomicInteger();
+    public static AtomicInteger maxIntB = new AtomicInteger();
+    public static AtomicInteger maxIntC = new AtomicInteger();
 
     public static void main(String[] args) throws InterruptedException {
-
+        List<Thread> threads = new ArrayList<>();
+        long startTs = System.currentTimeMillis(); // start time
+        System.out.println("Start generation strings");
         Thread generate = new Thread(() -> {
-            for (int i = 0; i < STRINGSIZE; i++) {
+            for (int i = 0; i < SIZEOFSTRINGS; i++) {
                 try {
-                    queueA.put(generateText(SYMBOL, STRINGLENGHT));
-                    queueB.put(queueA.take());
-                    queueC.put(queueB.take());
+                    String text = generateText(SYMBOL, STRINGLENGHT);
+                    queueAllStr.put(text);
+                    queueA.put(text);
+                    queueB.put(text);
+                    queueC.put(text);
                 } catch (InterruptedException e) {
                     return;
                 }
             }
         });
 
-        List<Thread> threads = new ArrayList<>();
+        System.out.println("Searches for the max number of characters...");
         threads.add(generate);
-        threads.add(characterSearch(queueA, A));
-        threads.add(characterSearch(queueB, B));
-        threads.add(characterSearch(queueC, C));
+        threads.add(characterSearch(queueA, A, maxStringA, maxIntA));
+        threads.add(characterSearch(queueB, B, maxStringB, maxIntB));
+        threads.add(characterSearch(queueC, C, maxStringC, maxIntC));
 
         for (Thread thread : threads) {
             thread.start();
         }
+
         for (Thread thread : threads) {
             thread.join();
         }
-        System.out.println("Finished!");
+
+        System.out.println("MAX 'A' " + maxIntA.get());
+        System.out.println("MAX 'B' " + maxIntB.get());
+        System.out.println("MAX 'C' " + maxIntC.get());
+
+        long endTs = System.currentTimeMillis(); // end time
+        System.out.println("Time: " + (endTs - startTs) + "ms");
+
+//        System.out.println("ALL STRINGS : ");
+//        for(int i = 0; i < queueAllStr.size(); i++){
+//            System.out.println(i + 1 + ". " + queueAllStr.poll() );
+//        }
+
+//        System.out.println("MAX 'A' " + maxIntA.get() + " in : " + maxStringA.get());
+//        System.out.println("MAX 'B' " + maxIntB.get() + " in : " + maxStringB.get());
+//        System.out.println("MAX 'C' " + maxIntC.get() + " in : " + maxStringC.get());
     }
 
     public static String generateText(String letters, int length) {
@@ -65,27 +93,24 @@ public class Main {
         return text.toString();
     }
 
-    public static Thread characterSearch(BlockingQueue<String> queue, char ch) {
-        AtomicReference<String> textMax = new AtomicReference<>();
+    public static Thread characterSearch(BlockingQueue<String> queue, char c, AtomicReference<String> maxStr, AtomicInteger max) {
         Runnable run = () -> {
-            int max = 0;
-            for (int i = 0; i < MAXSIZE; i++) {
-                String s = null;
+            for (int i = 0; i < SIZEOFSTRINGS; i++) {
+                String s;
                 try {
                     s = queue.take();
-                    queue.put(s);
                 } catch (InterruptedException e) {
                     return;
                 }
                 int count = 0;
                 for (int j = 0; j < STRINGLENGHT; j++) {
-                    if (s.charAt(j) == ch) {
+                    if (s.charAt(j) == c) {
                         count++;
                     }
                 }
-                if (count > max) {
-                    textMax.set(s);
-                    max = count;
+                if (count > max.get()) {
+                    maxStr.set(s);
+                    max.set(count);
                 }
             }
         };
